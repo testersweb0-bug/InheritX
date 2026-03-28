@@ -23,7 +23,7 @@ fn setup_test(env: &Env) -> (InheritanceContractClient<'_>, Address, Address) {
     let owner = create_test_address(env);
     let client = InheritanceContractClient::new(env, &contract_id);
     client.initialize_admin(&admin);
-    
+
     // Create a plan first as it's required for messages
     let beneficiaries_data = vec![
         env,
@@ -35,8 +35,8 @@ fn setup_test(env: &Env) -> (InheritanceContractClient<'_>, Address, Address) {
             10000u32,
         ),
     ];
-    
-    let plan_params = CreateInheritancePlanParams {
+
+    let _plan_params = CreateInheritancePlanParams {
         owner: owner.clone(),
         token: token_id,
         plan_name: String::from_str(env, "Test Plan"),
@@ -46,33 +46,33 @@ fn setup_test(env: &Env) -> (InheritanceContractClient<'_>, Address, Address) {
         beneficiaries_data,
         is_lendable: true,
     };
-    
+
     // We need to mint tokens to owner for plan creation
     // But for simplicity in message tests, let's just mock auths
     // and assume vault exists if we can get past the plan check.
     // In test.rs they actually mint tokens.
-    
+
     (client, owner, contract_id)
 }
 
 #[test]
 fn test_message_lifecycle_events() {
     let env = Env::default();
-    let (client, owner, contract_addr) = setup_test(&env);
-    
+    let (_client, _owner, _contract_addr) = setup_test(&env);
+
     // 1. Create a plan (actually needed because create_legacy_message checks for plan)
     // We need to actually create it or mock the storage.
     // Let's use the real create_inheritance_plan but we need to setup tokens.
     // Actually, I'll just use the setup from test.rs if I can't easily mock it.
-    
+
     // For now, let's assume we have a plan with ID 0.
     // Wait, the first plan ID will be 0.
-    
+
     // Let's just use the setup_with_token_and_admin from test.rs logic
     // but I can't easily call it if it's not pub. I'll just replicate it.
-    
+
     env.ledger().set_timestamp(1000);
-    
+
     // Mocking plan existence since we just want to test message logic
     // Actually, let's just create a real plan to be safe.
 }
@@ -86,11 +86,11 @@ fn full_setup(env: &Env) -> (InheritanceContractClient<'_>, Address, u64) {
     let owner = Address::generate(env);
     let client = InheritanceContractClient::new(env, &contract_id);
     client.initialize_admin(&admin);
-    
+
     // Mint tokens to owner
     let mock_token_client = mock_token::MockTokenClient::new(env, &token_id);
     mock_token_client.mint(&owner, &10_000_000i128);
-    
+
     let beneficiaries_data = vec![
         env,
         (
@@ -101,7 +101,7 @@ fn full_setup(env: &Env) -> (InheritanceContractClient<'_>, Address, u64) {
             10000u32,
         ),
     ];
-    
+
     let plan_id = client.create_inheritance_plan(&CreateInheritancePlanParams {
         owner: owner.clone(),
         token: token_id,
@@ -112,7 +112,7 @@ fn full_setup(env: &Env) -> (InheritanceContractClient<'_>, Address, u64) {
         beneficiaries_data,
         is_lendable: true,
     });
-    
+
     (client, owner, plan_id)
 }
 
@@ -120,11 +120,11 @@ fn full_setup(env: &Env) -> (InheritanceContractClient<'_>, Address, u64) {
 fn test_message_created_event() {
     let env = Env::default();
     let (client, owner, vault_id) = full_setup(&env);
-    
+
     let message_hash = create_test_bytes_n_32(&env);
     let unlock_timestamp = 2000;
     env.ledger().set_timestamp(1000);
-    
+
     let message_id = client.create_legacy_message(
         &owner,
         &CreateLegacyMessageParams {
@@ -134,11 +134,14 @@ fn test_message_created_event() {
             key_reference: String::from_str(&env, "ref_1"),
         },
     );
-    
+
     let last_event = env.events().all().last().unwrap();
     assert_eq!(last_event.0, contract_id(&env, &client));
-    assert_eq!(last_event.1, (Symbol::new(&env, "message_created"), vault_id).into_val(&env));
-    
+    assert_eq!(
+        last_event.1,
+        (Symbol::new(&env, "message_created"), vault_id).into_val(&env)
+    );
+
     // Verify event structure
     let event: MessageCreatedEvent = last_event.2.into_val(&env);
     assert_eq!(event.vault_id, vault_id);
@@ -150,11 +153,11 @@ fn test_message_created_event() {
 fn test_message_updated_event() {
     let env = Env::default();
     let (client, owner, vault_id) = full_setup(&env);
-    
+
     let message_hash = create_test_bytes_n_32(&env);
     let unlock_timestamp = 2000;
     env.ledger().set_timestamp(1000);
-    
+
     let message_id = client.create_legacy_message(
         &owner,
         &CreateLegacyMessageParams {
@@ -164,7 +167,7 @@ fn test_message_updated_event() {
             key_reference: String::from_str(&env, "ref_1"),
         },
     );
-    
+
     env.ledger().set_timestamp(1100);
     let new_hash = BytesN::from_array(&env, &[2u8; 32]);
     client.update_legacy_message(
@@ -177,10 +180,13 @@ fn test_message_updated_event() {
             key_reference: String::from_str(&env, "ref_updated"),
         },
     );
-    
+
     let last_event = env.events().all().last().unwrap();
-    assert_eq!(last_event.1, (Symbol::new(&env, "message_updated"), vault_id).into_val(&env));
-    
+    assert_eq!(
+        last_event.1,
+        (Symbol::new(&env, "message_updated"), vault_id).into_val(&env)
+    );
+
     let event: MessageUpdatedEvent = last_event.2.into_val(&env);
     assert_eq!(event.message_id, message_id);
     assert_eq!(event.timestamp, 1100);
@@ -190,7 +196,7 @@ fn test_message_updated_event() {
 fn test_message_finalized_event() {
     let env = Env::default();
     let (client, owner, vault_id) = full_setup(&env);
-    
+
     let message_id = client.create_legacy_message(
         &owner,
         &CreateLegacyMessageParams {
@@ -200,17 +206,20 @@ fn test_message_finalized_event() {
             key_reference: String::from_str(&env, "ref_1"),
         },
     );
-    
+
     env.ledger().set_timestamp(1200);
     client.finalize_legacy_message(&owner, &message_id);
-    
+
     let last_event = env.events().all().last().unwrap();
-    assert_eq!(last_event.1, (Symbol::new(&env, "message_finalized"), vault_id).into_val(&env));
-    
+    assert_eq!(
+        last_event.1,
+        (Symbol::new(&env, "message_finalized"), vault_id).into_val(&env)
+    );
+
     let event: MessageFinalizedEvent = last_event.2.into_val(&env);
     assert_eq!(event.message_id, message_id);
     assert_eq!(event.timestamp, 1200);
-    
+
     // Verify update fails after finalization
     let result = client.try_update_legacy_message(
         &owner,
@@ -229,7 +238,7 @@ fn test_message_finalized_event() {
 fn test_message_accessed_event() {
     let env = Env::default();
     env.mock_all_auths();
-    
+
     let contract_id = env.register_contract(None, InheritanceContract);
     let token_id = env.register_contract(None, MockToken);
     let admin = Address::generate(&env);
@@ -237,9 +246,9 @@ fn test_message_accessed_event() {
     let alice = Address::generate(&env);
     let client = InheritanceContractClient::new(&env, &contract_id);
     client.initialize_admin(&admin);
-    
+
     mock_token::MockTokenClient::new(&env, &token_id).mint(&owner, &10_000_000i128);
-    
+
     let beneficiaries_data = vec![
         &env,
         (
@@ -250,7 +259,7 @@ fn test_message_accessed_event() {
             10000u32,
         ),
     ];
-    
+
     let vault_id = client.create_inheritance_plan(&CreateInheritancePlanParams {
         owner: owner.clone(),
         token: token_id,
@@ -261,7 +270,7 @@ fn test_message_accessed_event() {
         beneficiaries_data,
         is_lendable: true,
     });
-    
+
     let message_id = client.create_legacy_message(
         &owner,
         &CreateLegacyMessageParams {
@@ -271,15 +280,15 @@ fn test_message_accessed_event() {
             key_reference: String::from_str(&env, "ref_1"),
         },
     );
-    
+
     // Unlock message by advancing time
     env.ledger().set_timestamp(2001);
-    
+
     // Alice accesses the message
     let result = client.try_access_legacy_message(&alice, &message_id);
     assert!(result.is_err());
 }
 
-fn contract_id(env: &Env, client: &InheritanceContractClient<'_>) -> Address {
+fn contract_id(_env: &Env, client: &InheritanceContractClient<'_>) -> Address {
     client.address.clone()
 }
